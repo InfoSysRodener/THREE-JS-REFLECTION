@@ -20,12 +20,12 @@ const textureLoader = new THREE.TextureLoader().load('./texture/digital.PNG');
 ])
 
 const environmentMapInside = new THREE.CubeTextureLoader().load([
-	'./texture/1/nz.png',
-	'./texture/1/pz.png',
-	'./texture/1/ny.png',
-	'./texture/1/py.png',
 	'./texture/1/nx.png',
 	'./texture/1/px.png',
+	'./texture/1/ny.png',
+	'./texture/1/py.png',
+	'./texture/1/nz.png',
+	'./texture/1/pz.png',
 ])
 
 /**
@@ -54,23 +54,24 @@ scene.add(ambiantLight);
 const boxGeometry = new THREE.BoxBufferGeometry(4,4,4, 10, 10, 10);
 const boxMaterial = new THREE.MeshPhongMaterial({ 
 	envMap:environmentMapInside,
-	reflectivity: 0.3,
+	reflectivity: 0.8,
 	color: 0xFFFFFF,
 	opacity: 0.5,
 	side:THREE.BackSide,
 	transparent: true,
-	envMapIntensity: 5,
+	// envMapIntensity: 5,
 	premultipliedAlpha: true
 });
 
 
 const settings = {
 	segments: 9,
-	radius: {value: 0.5},
+	radius: {value: 1 },
 	size: {
 	  value: new THREE.Vector3(4,4,4)
 	}
 }
+
 boxMaterial.onBeforeCompile = shader => {
   
 	shader.uniforms.boxSize = settings.size;
@@ -99,18 +100,17 @@ boxMaterial.onBeforeCompile = shader => {
 	  vNormal = transformedNormal;
 	  `
 	);
-  };
-const cube = new THREE.Mesh(boxGeometry, boxMaterial);
+};
 
+
+const cube = new THREE.Mesh(boxGeometry, boxMaterial);
 const outsideCube = cube.clone();
 outsideCube.material = new THREE.MeshPhongMaterial( {
-	// envMap:environmentMap,
+	envMap:environmentMap,
 	color: 0xffffff,
-	reflectivity: 1,
-	metalness: 0.5,
-	roughness: 0,
+	reflectivity: 0.5,
 	opacity: 0.25,
-	// side: THREE.FrontSide,
+	side: THREE.FrontSide,
 	transparent: true,
 	envMapIntensity: 10,
 	premultipliedAlpha: true
@@ -152,12 +152,10 @@ parentCube.add( cube );
 parentCube.add( outsideCube );
 scene.add( parentCube );
 
-
 gui.add(settings.radius, 'value').min(0).max(1).step(0.1).name('radius');
-gui.add(boxMaterial,'reflectivity').min(0.1).max(1).step(0.1);
+gui.add(boxMaterial,'reflectivity').min(0.1).max(1).step(0.1).name('inside Reflection');
+gui.add(outsideCube.material,'reflectivity').min(0.1).max(1).step(0.1).name('outside Reflection');
 gui.add(boxMaterial,'wireframe');
-// gui.add(boxMaterial,'metalness').min(0).max(1).step(0.1);
-// gui.add(boxMaterial,'roughness').min(0).max(1).step(0.1);
 
 
 const clock = new THREE.Clock();
@@ -165,8 +163,8 @@ const clock = new THREE.Clock();
 const animate = () => {
 	const elapsedTime = clock.getElapsedTime();
 
-	// parentCube.rotation.x = elapsedTime * 0.1;
-	// parentCube.rotation.y = - elapsedTime * 0.1;
+	parentCube.rotation.x = elapsedTime * 0.1;
+	parentCube.rotation.y = - elapsedTime * 0.1;
 
 	
 	scene.onUpdate();
