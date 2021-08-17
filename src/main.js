@@ -2,78 +2,171 @@ import '../style.css'
 import * as THREE from 'three';
 import * as dat from 'dat.gui';
 import SceneManager from './sceneManager/scene';
-import gsap from 'gsap';
 
 const gui = new dat.GUI();
 
-//scene
+const textureLoader = new THREE.TextureLoader().load('./texture/digital.PNG');
+
+/**
+ * Environment Map
+ */
+ const environmentMap = new THREE.CubeTextureLoader().load([
+	'./texture/1/px.png',
+	'./texture/1/nx.png',
+	'./texture/1/py.png',
+	'./texture/1/ny.png',
+	'./texture/1/pz.png',
+	'./texture/1/nz.png',
+])
+
+const environmentMapInside = new THREE.CubeTextureLoader().load([
+	'./texture/1/nz.png',
+	'./texture/1/pz.png',
+	'./texture/1/ny.png',
+	'./texture/1/py.png',
+	'./texture/1/nx.png',
+	'./texture/1/px.png',
+])
+
+/**
+ * Scene
+ */
 const canvas = document.querySelector('#canvas');
 const scene = new SceneManager(canvas);
-let conf = { color : '#a48c5d' }; 
-scene.scene.background.set(conf.color);
+let conf = { color : '#555555' }; 
+scene.scene.background = environmentMap;
 scene.addOrbitControl();
-scene.addFog(1,100,conf.color);
 
-//fog GUI
-const fogFolder = gui.addFolder('FOG');
-fogFolder.add(scene.scene.fog, 'near').min(1).max(100).step(0.01).listen();
-fogFolder.add(scene.scene.fog, 'far').min(1).max(100).step(0.01).listen();
-fogFolder.addColor(conf, 'color').onChange((color)=>{
-	scene.scene.fog.color.set(color);
-	scene.scene.background.set(color);
-	scene.scene.children
-		.filter(obj => obj.name === 'floor')[0]
-		.material.color.set(color)
-});
-const axesHelper = new THREE.AxesHelper(5);
 
-//lights
+
+
+/**
+ * Light
+ */
 const directionalLight = new THREE.DirectionalLight(0xFFFFFF,1);
 directionalLight.position.set(10,10,10);
 scene.add(directionalLight);
-const directionalHelper = new THREE.DirectionalLightHelper( directionalLight, 5 );
-scene.add(directionalHelper);
-
-gui.add(directionalHelper, 'visible').name('DLight Helper')
 
 const ambiantLight = new THREE.AmbientLight(0xFFFFFF,1);
 scene.add(ambiantLight);
 
-//geometry
-const width = 240;  
-const height = 240;   
-const geometry = new THREE.PlaneGeometry(width,height,100,100);
-const material = new THREE.MeshPhongMaterial( { color: conf.color} );
-const plane = new THREE.Mesh(geometry,material);
-plane.name = 'floor';
-plane.rotation.x = Math.PI * 1.50;
-scene.add(plane);
+
+const boxGeometry = new THREE.BoxBufferGeometry(4,4,4, 10, 10, 10);
+const boxMaterial = new THREE.MeshPhongMaterial({ 
+	envMap:environmentMapInside,
+	reflectivity: 0.3,
+	color: 0xFFFFFF,
+	opacity: 0.5,
+	side:THREE.BackSide,
+	transparent: true,
+	envMapIntensity: 5,
+	premultipliedAlpha: true
+});
 
 
-gui.add(material, 'wireframe').name('Plane WireFrame');
-
-
-const boxGeometry = new THREE.BoxBufferGeometry(4,4,4);
-const boxMaterial = new THREE.MeshStandardMaterial({color:0x442255});
+const settings = {
+	segments: 9,
+	radius: {value: 0.5},
+	size: {
+	  value: new THREE.Vector3(4,4,4)
+	}
+}
+boxMaterial.onBeforeCompile = shader => {
+  
+	shader.uniforms.boxSize = settings.size;
+	shader.uniforms.radius = settings.radius;
+	
+	shader.vertexShader = `
+	uniform vec3 boxSize;
+	uniform float radius;
+	` + shader.vertexShader;
+	
+	shader.vertexShader = shader.vertexShader.replace(
+	  `#include <begin_vertex>`,
+	  `#include <begin_vertex>
+	  
+  
+	  vec3 signs = sign(position);
+	  vec3 box = boxSize - vec3(radius);
+	  box = vec3(max(0.0, box.x), max(0.0, box.y), max(0.0, box.z));
+	  vec3 p = signs * box;
+  
+	  transformed = signs * box + normalize(position) * radius;
+	  
+	  // re-compute normals for correct shadows and reflections
+	  objectNormal = all(equal(p, transformed)) ? normal : normalize(position); 
+	  transformedNormal = normalize(normalMatrix * objectNormal);
+	  vNormal = transformedNormal;
+	  `
+	);
+  };
 const cube = new THREE.Mesh(boxGeometry, boxMaterial);
-cube.position.y = 5;
-cube.add(axesHelper);
-scene.add(cube);
 
-const cubeGUI = gui.addFolder('Cube');
-cubeGUI.add(boxMaterial, 'wireframe').name('Box Wireframe');
-cubeGUI.add(cube.scale, 'x').min(1).max(5).step(0.01).name('BoxScale X');
-cubeGUI.add(cube.scale, 'y').min(1).max(5).step(0.01).name('BoxScale Y');
-cubeGUI.add(cube.scale, 'z').min(1).max(5).step(0.01).name('BoxScale Z');
+const outsideCube = cube.clone();
+outsideCube.material = new THREE.MeshPhongMaterial( {
+	// envMap:environmentMap,
+	color: 0xffffff,
+	reflectivity: 1,
+	metalness: 0.5,
+	roughness: 0,
+	opacity: 0.25,
+	// side: THREE.FrontSide,
+	transparent: true,
+	envMapIntensity: 10,
+	premultipliedAlpha: true
+});;
 
-gsap.to(cube.rotation,{ duration:3,delay:3,x: Math.PI * 2 });
+outsideCube.material.onBeforeCompile = shader => {
+  
+	shader.uniforms.boxSize = settings.size;
+	shader.uniforms.radius = settings.radius;
+	
+	shader.vertexShader = `
+	uniform vec3 boxSize;
+	uniform float radius;
+	` + shader.vertexShader;
+	
+	shader.vertexShader = shader.vertexShader.replace(
+	  `#include <begin_vertex>`,
+	  `#include <begin_vertex>
+	  
+  
+	  vec3 signs = sign(position);
+	  vec3 box = boxSize - vec3(radius);
+	  box = vec3(max(0.0, box.x), max(0.0, box.y), max(0.0, box.z));
+	  vec3 p = signs * box;
+  
+	  transformed = signs * box + normalize(position) * radius;
+	  
+	  // re-compute normals for correct shadows and reflections
+	  objectNormal = all(equal(p, transformed)) ? normal : normalize(position); 
+	  transformedNormal = normalize(normalMatrix * objectNormal);
+	  vNormal = transformedNormal;
+	  `
+	);
+  };
+
+
+const parentCube = new THREE.Group();
+parentCube.add( cube );
+parentCube.add( outsideCube );
+scene.add( parentCube );
+
+
+gui.add(settings.radius, 'value').min(0).max(1).step(0.1).name('radius');
+gui.add(boxMaterial,'reflectivity').min(0.1).max(1).step(0.1);
+gui.add(boxMaterial,'wireframe');
+// gui.add(boxMaterial,'metalness').min(0).max(1).step(0.1);
+// gui.add(boxMaterial,'roughness').min(0).max(1).step(0.1);
+
 
 const clock = new THREE.Clock();
 
 const animate = () => {
 	const elapsedTime = clock.getElapsedTime();
 
-	cube.rotation.y = elapsedTime;
+	// parentCube.rotation.x = elapsedTime * 0.1;
+	// parentCube.rotation.y = - elapsedTime * 0.1;
 
 	
 	scene.onUpdate();

@@ -16,6 +16,7 @@ export default class SceneManager {
         const renderer = new THREE.WebGLRenderer({ canvas:this.canvas, antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight, false);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
 
         window.addEventListener('resize', () => this.onWindowsResize(), false);
 
